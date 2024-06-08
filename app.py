@@ -157,19 +157,23 @@ def main():
     box_grid_response = AgGrid(
         box_df,
         gridOptions=grid_options,
-        update_mode=GridUpdateMode.SELECTION_CHANGED | GridUpdateMode.MODEL_CHANGED,
+        update_on=["cellValueChanged", "selectionChanged"],
     )
 
     selected_box = None
-    selected_box_id = None
     if box_grid_response.event_data:
         if box_grid_response.event_data["type"] == "selectionChanged":
             selected_box = box_grid_response.selected_data
+        elif box_grid_response.event_data["type"] == "cellValueChanged":
+            update_box(
+                box_grid_response.event_data["data"]["id"],
+                box_grid_response.event_data["data"]["box_identifier"],
+                box_grid_response.event_data["data"]["location"],
+            )
 
     if selected_box is not None:
         selected_box = selected_box.iloc[0]
-        selected_box_id = selected_box["id"]
-        print(f"Selected Box ID: {selected_box_id}")
+        # print(f"Selected Box ID: {selected_box["id"]}")
 
     st.sidebar.subheader("Add / Edit Box")
     box_identifier = st.sidebar.text_input("Box Identifier")
@@ -181,16 +185,16 @@ def main():
 
     if selected_box is not None:
         if st.sidebar.button("Update Box"):
-            update_box(selected_box_id, box_identifier, location)
+            update_box(selected_box["id"], box_identifier, location)
             st.rerun()
 
         if st.sidebar.button("Delete Box"):
-            delete_box(selected_box_id)
+            delete_box(selected_box["id"])
             st.rerun()
 
         # Display and manage items for the selected box
         st.header(f"Items in {selected_box['box_identifier']}")
-        item_df = fetch_items(selected_box_id)
+        item_df = fetch_items(selected_box["id"])
 
         # Custom cell renderer for images
         image_cell_renderer = JsCode(
@@ -201,7 +205,7 @@ def main():
 
                     const image = 'data:image/jpeg;base64,' + params.value;
                     this.eGui.src = image;
-                    this.eGui.style.width = '100px';
+                    this.eGui.style.width = '50px';
                     this.eGui.style.height = 'auto';
                     this.eGui.style.objectFit = 'contain';
                 }
@@ -224,7 +228,9 @@ def main():
         igb.configure_column("category", header_name="Category", editable=True)
         igb.configure_column("description", header_name="Description", editable=True)
         igb.configure_column("price", header_name="Price", editable=True)
-        igb.configure_column("image", header_name="Image", cellRenderer=image_cell_renderer)
+        igb.configure_column(
+            "image", header_name="Image", cellRenderer=image_cell_renderer
+        )
         igb.configure_grid_options(rowSelection="single", suppressRowDeselection=False)
         item_grid_options = igb.build()
 
@@ -232,15 +238,22 @@ def main():
             item_df,
             gridOptions=item_grid_options,
             allow_unsafe_jscode=True,
-            # update_on=["cellValueChanged", "selectionChanged"],
-            update_mode=GridUpdateMode.SELECTION_CHANGED | GridUpdateMode.MODEL_CHANGED,
+            update_on=["cellValueChanged", "selectionChanged"],
         )
 
         selected_item = None
         if item_grid_response.event_data:
             if item_grid_response.event_data["type"] == "selectionChanged":
                 selected_item = item_grid_response.selected_data
-
+            elif item_grid_response.event_data["type"] == "cellValueChanged":
+                update_item(
+                    item_grid_response.event_data["data"]["id"],
+                    item_grid_response.event_data["data"]["name"],
+                    item_grid_response.event_data["data"]["category"],
+                    item_grid_response.event_data["data"]["description"],
+                    item_grid_response.event_data["data"]["price"],
+                    item_grid_response.event_data["data"]["image"],
+                )
         st.sidebar.subheader("Add / Edit Item")
         item_name = st.sidebar.text_input("Item Name")
         category = st.sidebar.text_input("Category")
@@ -256,7 +269,7 @@ def main():
 
         if st.sidebar.button("Add Item"):
             insert_item(
-                int(selected_box_id),
+                int(selected_box["id"]),
                 item_name,
                 category,
                 description,
@@ -267,11 +280,10 @@ def main():
 
         if selected_item is not None:
             selected_item = selected_item.iloc[0]
-            selected_item_id = selected_item["id"]
-            print(f"Selected Item ID: {selected_item_id}")
+            # print(f"Selected Item ID: {selected_item["id"]}")
             if st.sidebar.button("Update Item"):
                 update_item(
-                    selected_item_id,
+                    selected_item["id"],
                     item_name,
                     category,
                     description,
@@ -281,7 +293,7 @@ def main():
                 st.rerun()
 
             if st.sidebar.button("Delete Item"):
-                delete_item(selected_item_id)
+                delete_item(selected_item["id"])
                 st.rerun()
 
 
